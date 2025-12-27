@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
 const helmet = require('helmet');
-const util = require('util');
+// const util = require('util');
 const crypto = require('crypto');
 const path = require('path');
 const { createServer } = require('http');
@@ -19,9 +19,6 @@ const { User, Brt } = require('./models/userStuff');
 const app = express();
 const port = process.env.PORT || 3000;
 const publicFolder = path.join(__dirname, 'public');
-
-// const verifyJwt = util.promisify(jwt.verify);
-// const signJwt = util.promisify(jwt.sign);
 
 const server = createServer(app);
 
@@ -102,7 +99,7 @@ const verifyAccessToken = async (req, res, next) => {
 			return res.redirect('/login'); // to stop access as soon as the log-out
 		}
 		if(!accessToken) {
-			return verifyRefreshToken(req, res, next);
+			return await verifyRefreshToken(req, res, next);
 		}
 		// there's access token
 		try {
@@ -111,7 +108,7 @@ const verifyAccessToken = async (req, res, next) => {
 			req.user = decoded;
 			next();
 		} catch(err) {
-			verifyRefreshToken(req, res, next);
+			await verifyRefreshToken(req, res, next);
 		}
 
 	} catch(err) {
@@ -135,7 +132,14 @@ const verifyRefreshToken = async (req, res, next) => {
 		try {
 			const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_KEY);
 			// pass the data to use to generate another aaccess token
-			const newAccessToken = jwt.sign({ id: decoded.id }, process.env.ACCESS_TOKEN_KEY, { expiresIn: '2m' });
+
+			/*if(!decoded.id) { //🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕🆕
+				const url = req.originalUrl;
+				return res.redirect(`/${url}`);
+			}*/
+			req.user = decoded;
+			const newAccessToken = jwt.sign({ id: req.user.id }, process.env.ACCESS_TOKEN_KEY, { expiresIn: '2m' });
+
 			res.cookie('accessToken', newAccessToken, {
 				httpOnly: true,
 				secure: process.env.NODE_ENV !== 'development',
@@ -143,6 +147,8 @@ const verifyRefreshToken = async (req, res, next) => {
 				maxAge: 2 * 60 * 1000 //2 mins
 			});
 			// verifyAccessToken(req, res, next); // wow logic, it's better approach than calling next
+			const decodedAT = jwt.verify(newAccessToken, process.env.ACCESS_TOKEN_KEY);
+			req.user = decodedAT;
 			return next();
 		} catch(err) {
 			res.redirect('/login');
